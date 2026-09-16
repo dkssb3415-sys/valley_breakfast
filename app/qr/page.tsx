@@ -8,7 +8,7 @@ const BASE_URL = 'https://valleybreakfast.vercel.app';
 
 // 테이블 번호 목록 (필요한 테이블 번호로 자유롭게 수정 가능)
 const TABLES = [
-  'A1,A2,A3,B1,B2,B3,C1,C2,C3,D1,D2,D3,T1,T2,T3,T4,T5,T6,T7'
+  'A1','A2','A3','B1','B2','B3',C1,C2,C3,D1,D2,D3,T1,T2,T3,T4,T5,T6,T7'
 ];
 
 export default function QRGeneratorPage() {

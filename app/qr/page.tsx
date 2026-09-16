@@ -6,7 +6,7 @@ import { QRCodeSVG } from 'qrcode.react';
 // 실제 배포된 Production 주소 설정
 const BASE_URL = 'https://valleybreakfast.vercel.app';
 
-// 테이블 목록 (각각의 테이블 번호가 개별 항목으로 구분됨)
+// 테이블 목록
 const TABLES = [
   'A1', 'A2', 'A3',
   'B1', 'B2', 'B3',
@@ -42,7 +42,7 @@ export default function QRGeneratorPage() {
         </button>
       </div>
 
-      {/* QR 코드 그리드 레이아웃 (테이블별 개별 카드 생성) */}
+      {/* QR 코드 그리드 레이아웃 */}
       <div className="max-w-4xl mx-auto grid grid-cols-2 gap-6 print:grid-cols-2 print:gap-4 print:max-w-none">
         {TABLES.map((table) => {
           const targetUrl = `${BASE_URL}/order?table=${table}`;

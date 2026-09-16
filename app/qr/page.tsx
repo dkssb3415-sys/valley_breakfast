@@ -1,96 +1,212 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { useSearchParams } from 'next/navigation';
 
-// 실제 배포된 Production 주소 설정
-const BASE_URL = 'https://valleybreakfast.vercel.app';
-
-// 테이블 목록
-const TABLES = [
-  'A1', 'A2', 'A3',
-  'B1', 'B2', 'B3',
-  'C1', 'C2', 'C3',
-  'D1', 'D2', 'D3',
-  'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'
+// 메뉴 목록 ('라이브 쌀국수' 제외)
+const MENUS = [
+  { id: 'omelet', name: '치즈 오믈렛' },
+  { id: 'pancake', name: '팬케이크' },
 ];
 
-export default function QRGeneratorPage() {
+export default function OrderPage() {
+  const searchParams = useSearchParams();
+  const table = searchParams.get('table') || '1';
+
+  // 메뉴별 수량 관리 (라이브 쌀국수 제거 반영)
+  const [quantities, setQuantities] = useState<{ [key: string]: number }>({
+    omelet: 0,
+    pancake: 0,
+  });
+
+  const [orders, setOrders] = useState<any[]>([]);
   const [isMounted, setIsMounted] = useState(false);
+
+  // 팝업 상태 관리
+  const [latestOrder, setLatestOrder] = useState<any>(null);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // 수량 변경 함수 (최소 0개, 최대 2개 제한)
+  const handleQuantityChange = (menuId: string, delta: number) => {
+    setQuantities((prev) => {
+      const current = prev[menuId] || 0;
+      const updated = current + delta;
+      if (updated < 0 || updated > 2) return prev;
+      return { ...prev, [menuId]: updated };
+    });
+  };
+
+  // 주문 전송하기
+  const handleOrderSubmit = () => {
+    const selectedItems = Object.entries(quantities)
+      .filter(([_, qty]) => qty > 0)
+      .map(([id, qty]) => {
+        const menuInfo = MENUS.find((m) => m.id === id);
+        return { name: menuInfo?.name, quantity: qty };
+      });
+
+    if (selectedItems.length === 0) {
+      alert('주문할 메뉴와 수량을 선택해주세요.');
+      return;
+    }
+
+    const newOrder = {
+      table,
+      items: selectedItems,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setOrders((prev) => [newOrder, ...prev]);
+
+    // 팝업에 띄울 최근 주문 데이터 설정 후 팝업 열기
+    setLatestOrder(newOrder);
+    setIsPopupOpen(true);
+
+    // 주문 후 수량 초기화
+    setQuantities({ omelet: 0, pancake: 0 });
+  };
+
   if (!isMounted) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 print:p-0 print:bg-white">
-      {/* 인쇄 시 숨겨지는 상단 제어 바 */}
-      <div className="max-w-4xl mx-auto mb-8 flex justify-between items-center print:hidden bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">테이블별 QR 코드 인쇄 출력</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            배포 주소: <span className="font-mono text-blue-600">{BASE_URL}</span>
+    <div className="min-h-screen bg-gray-50 p-6 max-w-md mx-auto flex flex-col justify-between relative">
+      <div>
+        {/* 상단 타이틀 */}
+        <div className="border-b pb-4 mb-6">
+          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            🍽️ 조식 뷔페 주문
+          </h1>
+          <p className="text-lg font-semibold text-blue-600 mt-1">
+            테이블 번호: {table}번
           </p>
         </div>
+
+        {/* 메뉴 선택 및 수량 조절 영역 */}
+        <div className="mb-6">
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">
+              메뉴 선택
+            </h2>
+            <p className="text-xs font-medium text-rose-500 bg-rose-50 p-2 rounded-lg border border-rose-100 leading-relaxed">
+              💡 1회 주문 시 최대 2개까지 구매 가능합니다.<br />
+              주문 완료 후 재주문 가능합니다.
+            </p>
+          </div>
+          
+          <div className="space-y-3">
+            {MENUS.map((menu) => {
+              const qty = quantities[menu.id] || 0;
+              return (
+                <div
+                  key={menu.id}
+                  className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between shadow-sm"
+                >
+                  <span className="font-bold text-gray-800 text-lg">{menu.name}</span>
+                  
+                  {/* 수량 조절 버튼 */}
+                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg p-1">
+                    <button
+                      onClick={() => handleQuantityChange(menu.id, -1)}
+                      disabled={qty === 0}
+                      className="w-8 h-8 flex items-center justify-center bg-white rounded-md shadow-sm font-bold text-gray-600 disabled:opacity-30"
+                    >
+                      -
+                    </button>
+                    <span className="w-6 text-center font-bold text-lg text-gray-800">
+                      {qty}
+                    </span>
+                    <button
+                      onClick={() => handleQuantityChange(menu.id, 1)}
+                      disabled={qty >= 2}
+                      className="w-8 h-8 flex items-center justify-center bg-white rounded-md shadow-sm font-bold text-blue-600 disabled:opacity-30"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 주문 전송 버튼 */}
         <button
-          onClick={() => window.print()}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 rounded-lg shadow-sm transition-colors flex items-center gap-2"
+          onClick={handleOrderSubmit}
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors text-lg"
         >
-          🖨️ PDF로 저장 / 인쇄
+          주문 전송하기
         </button>
-      </div>
 
-      {/* QR 코드 그리드 레이아웃 */}
-      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-6 print:grid-cols-2 print:gap-4 print:max-w-none">
-        {TABLES.map((table) => {
-          const targetUrl = `${BASE_URL}/order?table=${table}`;
-
-          return (
-            <div
-              key={table}
-              className="bg-white border-2 border-gray-200 rounded-2xl p-6 text-center flex flex-col items-center justify-between shadow-sm page-break-inside-avoid print:shadow-none print:border-gray-300 print:mb-4"
-            >
-              <div className="w-full text-center border-b pb-3 mb-4">
-                <span className="text-xs uppercase tracking-widest text-gray-400 font-semibold">Breakfast Service</span>
-                <h2 className="text-2xl font-black text-gray-800 mt-1">테이블 {table}번</h2>
-              </div>
-
-              {/* QR 코드 생성 영역 */}
-              <div className="p-4 bg-white rounded-xl border border-gray-100 shadow-inner my-2">
-                <QRCodeSVG
-                  value={targetUrl}
-                  size={160}
-                  level="H"
-                  includeMargin={true}
-                />
-              </div>
-
-              <div className="mt-4 text-center">
-                <p className="text-sm font-semibold text-gray-700">카메라로 스캔하여 주문해 주세요</p>
-                <p className="text-xs text-gray-400 font-mono mt-1 print:text-[10px]">{targetUrl}</p>
-              </div>
+        {/* 내 주문 현황 */}
+        <div className="mt-8 border-t pt-6">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            📋 내 주문 현황
+          </h2>
+          {orders.length === 0 ? (
+            <p className="text-sm text-gray-400">주문 내역이 없습니다.</p>
+          ) : (
+            <div className="space-y-3">
+              {orders.map((order, idx) => (
+                <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-gray-400">{order.time} 접수</span>
+                    <span className="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">
+                      주문완료
+                    </span>
+                  </div>
+                  <ul className="space-y-1">
+                    {order.items.map((item: any, i: number) => (
+                      <li key={i} className="text-sm font-medium text-gray-700 flex justify-between">
+                        <span>{item.name}</span>
+                        <span className="font-bold text-gray-900">{item.quantity}개</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
 
-      {/* 인쇄 스타일 제어 */}
-      <style jsx global>{`
-        @media print {
-          @page {
-            size: A4;
-            margin: 15mm;
-          }
-          body {
-            background: white !important;
-          }
-          .page-break-inside-avoid {
-            break-inside: avoid;
-          }
-        }
-      `}</style>
+      {/* 주문 완료 팝업 (모달) */}
+      {isPopupOpen && latestOrder && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center transform animate-in fade-in zoom-in duration-200">
+            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-inner">
+              ✅
+            </div>
+            <h3 className="text-xl font-black text-gray-800 mb-1">주문이 완료되었습니다!</h3>
+            <p className="text-xs text-gray-500 mb-6">주방으로 주문이 안전하게 전송되었습니다.</p>
+
+            <div className="bg-gray-50 rounded-xl p-4 text-left border border-gray-100 mb-6">
+              <div className="flex justify-between text-xs text-gray-400 border-b pb-2 mb-2">
+                <span>테이블 {latestOrder.table}번</span>
+                <span>{latestOrder.time}</span>
+              </div>
+              <ul className="space-y-1.5">
+                {latestOrder.items.map((item: any, i: number) => (
+                  <li key={i} className="flex justify-between text-sm font-bold text-gray-700">
+                    <span>{item.name}</span>
+                    <span className="text-rose-600">{item.quantity}개</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <button
+              onClick={() => setIsPopupOpen(false)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-// 메뉴 목록 ('라이브 쌀국수' 제외)
+// 메뉴 목록 ('라이브 쌀국수' 제외 완료)
 const MENUS = [
   { id: 'omelet', name: '치즈 오믈렛' },
   { id: 'pancake', name: '팬케이크' },
@@ -13,7 +13,7 @@ export default function OrderPage() {
   const searchParams = useSearchParams();
   const table = searchParams.get('table') || '1';
 
-  // 메뉴별 수량 관리 (라이브 쌀국수 제거 반영)
+  // 메뉴별 수량 관리
   const [quantities, setQuantities] = useState<{ [key: string]: number }>({
     omelet: 0,
     pancake: 0,
@@ -22,7 +22,7 @@ export default function OrderPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [isMounted, setIsMounted] = useState(false);
 
-  // 팝업 상태 관리
+  // 주문 완료 팝업 상태 관리
   const [latestOrder, setLatestOrder] = useState<any>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
 
@@ -62,7 +62,7 @@ export default function OrderPage() {
 
     setOrders((prev) => [newOrder, ...prev]);
 
-    // 팝업에 띄울 최근 주문 데이터 설정 후 팝업 열기
+    // 주문 완료 팝업 오픈 및 데이터 세팅
     setLatestOrder(newOrder);
     setIsPopupOpen(true);
 
@@ -85,12 +85,13 @@ export default function OrderPage() {
           </p>
         </div>
 
-        {/* 메뉴 선택 및 수량 조절 영역 */}
+        {/* 메뉴 선택 및 안내 문구 영역 */}
         <div className="mb-6">
           <div className="mb-3">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">
               메뉴 선택
             </h2>
+            {/* 요청하신 안내 문구 반영 */}
             <p className="text-xs font-medium text-rose-500 bg-rose-50 p-2 rounded-lg border border-rose-100 leading-relaxed">
               💡 1회 주문 시 최대 2개까지 구매 가능합니다.<br />
               주문 완료 후 재주문 가능합니다.
@@ -107,7 +108,7 @@ export default function OrderPage() {
                 >
                   <span className="font-bold text-gray-800 text-lg">{menu.name}</span>
                   
-                  {/* 수량 조절 버튼 */}
+                  {/* 수량 조절 버튼 (+ / -) */}
                   <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg p-1">
                     <button
                       onClick={() => handleQuantityChange(menu.id, -1)}

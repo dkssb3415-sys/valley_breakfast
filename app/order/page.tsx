@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-// 메뉴 목록 (이름과 고유 ID)
+// 메뉴 목록 ('라이브 쌀국수' 제외)
 const MENUS = [
   { id: 'omelet', name: '치즈 오믈렛' },
   { id: 'pancake', name: '팬케이크' },
@@ -13,15 +13,18 @@ export default function OrderPage() {
   const searchParams = useSearchParams();
   const table = searchParams.get('table') || '1';
 
-  // 메뉴별 수량 관리 (예: { omelet: 1, noodle: 0, pancake: 2 })
+  // 메뉴별 수량 관리 (라이브 쌀국수 제거 반영)
   const [quantities, setQuantities] = useState<{ [key: string]: number }>({
     omelet: 0,
-    noodle: 0,
     pancake: 0,
   });
 
   const [orders, setOrders] = useState<any[]>([]);
   const [isMounted, setIsMounted] = useState(false);
+
+  // 팝업 상태 관리
+  const [latestOrder, setLatestOrder] = useState<any>(null);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -32,14 +35,13 @@ export default function OrderPage() {
     setQuantities((prev) => {
       const current = prev[menuId] || 0;
       const updated = current + delta;
-      if (updated < 0 || updated > 2) return prev; // 0개 미만, 2개 초과 방지
+      if (updated < 0 || updated > 2) return prev;
       return { ...prev, [menuId]: updated };
     });
   };
 
   // 주문 전송하기
   const handleOrderSubmit = () => {
-    // 선택된 수량이 하나라도 있는지 확인
     const selectedItems = Object.entries(quantities)
       .filter(([_, qty]) => qty > 0)
       .map(([id, qty]) => {
@@ -60,15 +62,18 @@ export default function OrderPage() {
 
     setOrders((prev) => [newOrder, ...prev]);
 
+    // 팝업에 띄울 최근 주문 데이터 설정 후 팝업 열기
+    setLatestOrder(newOrder);
+    setIsPopupOpen(true);
+
     // 주문 후 수량 초기화
-    setQuantities({ omelet: 0, noodle: 0, pancake: 0 });
-    alert('주문이 완료되었습니다!');
+    setQuantities({ omelet: 0, pancake: 0 });
   };
 
   if (!isMounted) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 max-w-md mx-auto flex flex-col justify-between">
+    <div className="min-h-screen bg-gray-50 p-6 max-w-md mx-auto flex flex-col justify-between relative">
       <div>
         {/* 상단 타이틀 */}
         <div className="border-b pb-4 mb-6">
@@ -86,7 +91,6 @@ export default function OrderPage() {
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">
               메뉴 선택
             </h2>
-            {/* 수정된 안내 문구 */}
             <p className="text-xs font-medium text-rose-500 bg-rose-50 p-2 rounded-lg border border-rose-100 leading-relaxed">
               💡 1회 주문 시 최대 2개까지 구매 가능합니다.<br />
               주문 완료 후 재주문 가능합니다.
@@ -168,6 +172,41 @@ export default function OrderPage() {
           )}
         </div>
       </div>
+
+      {/* 주문 완료 팝업 (모달) */}
+      {isPopupOpen && latestOrder && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center transform animate-in fade-in zoom-in duration-200">
+            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-inner">
+              ✅
+            </div>
+            <h3 className="text-xl font-black text-gray-800 mb-1">주문이 완료되었습니다!</h3>
+            <p className="text-xs text-gray-500 mb-6">주방으로 주문이 안전하게 전송되었습니다.</p>
+
+            <div className="bg-gray-50 rounded-xl p-4 text-left border border-gray-100 mb-6">
+              <div className="flex justify-between text-xs text-gray-400 border-b pb-2 mb-2">
+                <span>테이블 {latestOrder.table}번</span>
+                <span>{latestOrder.time}</span>
+              </div>
+              <ul className="space-y-1.5">
+                {latestOrder.items.map((item: any, i: number) => (
+                  <li key={i} className="flex justify-between text-sm font-bold text-gray-700">
+                    <span>{item.name}</span>
+                    <span className="text-rose-600">{item.quantity}개</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <button
+              onClick={() => setIsPopupOpen(false)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

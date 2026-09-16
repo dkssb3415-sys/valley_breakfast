@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-// 메뉴 목록 ('라이브 쌀국수' 제외)
+// 메뉴 목록 (라이브 쌀국수 제외, 치즈 오믈렛과 팬케이크)
 const MENUS = [
   { id: 'omelet', name: '치즈 오믈렛' },
   { id: 'pancake', name: '팬케이크' },
@@ -13,7 +13,7 @@ export default function OrderPage() {
   const searchParams = useSearchParams();
   const table = searchParams.get('table') || '1';
 
-  // 메뉴별 수량 관리 (라이브 쌀국수 제거 반영)
+  // 메뉴별 수량 관리
   const [quantities, setQuantities] = useState<{ [key: string]: number }>({
     omelet: 0,
     pancake: 0,

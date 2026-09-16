@@ -4,13 +4,12 @@ import { useState, useEffect } from 'react';
 
 export default function KitchenPage() {
   const [orders, setOrders] = useState<any[]>([]);
-  const [statusText, setStatusText] = useState('연결 대기 중...');
+  const [statusText, setStatusText] = useState('실시간 연결 대기 중...');
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-    // 임시로 로컬 상태 기반 또는 주기적 동기화 구현 위치
-    // 현재 구조에 맞춰 주문 데이터를 불러오는 로직이 있다면 이 곳에 유지됩니다.
+    // 주방 화면 로직 (필요시 폴링 또는 실시간 동기화 구현부)
   }, []);
 
   if (!isMounted) return null;
@@ -75,7 +74,7 @@ export default function KitchenPage() {
                   </ul>
                 </div>
 
-                {/* 조리 완료 처리 버튼 등 필요시 활용 */}
+                {/* 조리 완료 처리 버튼 */}
                 <button
                   onClick={() => {
                     setOrders((prev) => prev.filter((_, i) => i !== idx));

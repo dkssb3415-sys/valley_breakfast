@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-// 메뉴 목록 ('라이브 쌀국수' 제외 완료)
+// 메뉴 목록: '라이브 쌀국수' 제거 완료 (치즈 오믈렛, 팬케이크만 구성)
 const MENUS = [
   { id: 'omelet', name: '치즈 오믈렛' },
   { id: 'pancake', name: '팬케이크' },
 ];
 
-export default function OrderPage() {
+function OrderContent() {
   const searchParams = useSearchParams();
   const table = searchParams.get('table') || '1';
 
-  // 메뉴별 수량 관리
+  // 메뉴별 선택 수량 상태
   const [quantities, setQuantities] = useState<{ [key: string]: number }>({
     omelet: 0,
     pancake: 0,
@@ -22,13 +22,12 @@ export default function OrderPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [isMounted, setIsMounted] = useState(false);
 
-  // 주문 완료 팝업 상태 관리
+  // 주문 완료 팝업 상태
   const [latestOrder, setLatestOrder] = useState<any>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-    // 접속 시 기존에 저장된 주문 목록 불러오기
     try {
       const savedOrders = localStorage.getItem('guest_orders');
       if (savedOrders) {
@@ -39,7 +38,7 @@ export default function OrderPage() {
     }
   }, []);
 
-  // 수량 변경 함수 (최소 0개, 최대 2개 제한)
+  // 수량 변경 함수 (최대 2개 제한)
   const handleQuantityChange = (menuId: string, delta: number) => {
     setQuantities((prev) => {
       const current = prev[menuId] || 0;
@@ -49,7 +48,7 @@ export default function OrderPage() {
     });
   };
 
-  // 주문 전송하기
+  // 주문 전송
   const handleOrderSubmit = () => {
     const selectedItems = Object.entries(quantities)
       .filter(([_, qty]) => qty > 0)
@@ -69,17 +68,16 @@ export default function OrderPage() {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    // 1. 기존 localStorage 데이터에 추가 후 저장 (Kitchen 페이지 연동용)
+    // localStorage 저장 (주방 연동용)
     const existingOrders = JSON.parse(localStorage.getItem('guest_orders') || '[]');
     const updatedOrders = [newOrder, ...existingOrders];
     localStorage.setItem('guest_orders', JSON.stringify(updatedOrders));
 
-    // 2. 현재 페이지 React 상태 업데이트
     setOrders(updatedOrders);
     setLatestOrder(newOrder);
     setIsPopupOpen(true);
 
-    // 3. 수량 초기화
+    // 수량 초기화
     setQuantities({ omelet: 0, pancake: 0 });
   };
 
@@ -98,17 +96,11 @@ export default function OrderPage() {
           </p>
         </div>
 
-        {/* 메뉴 선택 및 안내 문구 영역 */}
+        {/* 메뉴 선택 영역 */}
         <div className="mb-6">
-          <div className="mb-3">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">
-              메뉴 선택
-            </h2>
-            <p className="text-xs font-medium text-rose-500 bg-rose-50 p-2 rounded-lg border border-rose-100 leading-relaxed">
-              💡 1회 주문 시 최대 2개까지 구매 가능합니다.<br />
-              주문 완료 후 재주문 가능합니다.
-            </p>
-          </div>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            메뉴 선택
+          </h2>
           
           <div className="space-y-3">
             {MENUS.map((menu) => {
@@ -120,12 +112,12 @@ export default function OrderPage() {
                 >
                   <span className="font-bold text-gray-800 text-lg">{menu.name}</span>
                   
-                  {/* 수량 조절 버튼 (+ / -) */}
+                  {/* 수량 조절 버튼 (0 ~ 2개 제한) */}
                   <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg p-1">
                     <button
                       onClick={() => handleQuantityChange(menu.id, -1)}
                       disabled={qty === 0}
-                      className="w-8 h-8 flex items-center justify-center bg-white rounded-md shadow-sm font-bold text-gray-600 disabled:opacity-30"
+                      className="w-9 h-9 flex items-center justify-center bg-white rounded-md shadow-sm font-bold text-gray-600 active:bg-gray-100 disabled:opacity-30"
                     >
                       -
                     </button>
@@ -135,7 +127,7 @@ export default function OrderPage() {
                     <button
                       onClick={() => handleQuantityChange(menu.id, 1)}
                       disabled={qty >= 2}
-                      className="w-8 h-8 flex items-center justify-center bg-white rounded-md shadow-sm font-bold text-blue-600 disabled:opacity-30"
+                      className="w-9 h-9 flex items-center justify-center bg-white rounded-md shadow-sm font-bold text-blue-600 active:bg-gray-100 disabled:opacity-30"
                     >
                       +
                     </button>
@@ -149,13 +141,23 @@ export default function OrderPage() {
         {/* 주문 전송 버튼 */}
         <button
           onClick={handleOrderSubmit}
-          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors text-lg"
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors text-lg mb-6"
         >
           주문 전송하기
         </button>
 
+        {/* 요청하신 하단 안내 문구 영역 */}
+        <div className="bg-gray-100/80 rounded-xl p-4 text-xs text-gray-600 space-y-1.5 border border-gray-200/60 mb-6">
+          <p className="leading-relaxed font-medium">
+            ※ 1회 주문 시 최대 2개까지 선택 가능하며 수령 완료 후 추가 주문이 가능합니다.
+          </p>
+          <p className="leading-relaxed font-medium text-rose-600">
+            ※ 쌀국수는 라이브 현장에서 주문 부탁드립니다.
+          </p>
+        </div>
+
         {/* 내 주문 현황 */}
-        <div className="mt-8 border-t pt-6">
+        <div className="border-t pt-6">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
             📋 내 주문 현황
           </h2>
@@ -168,7 +170,7 @@ export default function OrderPage() {
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-xs text-gray-400">{order.time} 접수</span>
                     <span className="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">
-                      주문완료
+                      주문접수
                     </span>
                   </div>
                   <ul className="space-y-1">
@@ -186,11 +188,11 @@ export default function OrderPage() {
         </div>
       </div>
 
-      {/* 주문 완료 팝업 (모달) */}
+      {/* 주문 완료 팝업 */}
       {isPopupOpen && latestOrder && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center transform animate-in fade-in zoom-in duration-200">
-            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-inner">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">
+            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
               ✅
             </div>
             <h3 className="text-xl font-black text-gray-800 mb-1">주문이 완료되었습니다!</h3>
@@ -221,5 +223,13 @@ export default function OrderPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OrderPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center">로딩 중...</div>}>
+      <OrderContent />
+    </Suspense>
   );
 }

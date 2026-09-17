@@ -43,14 +43,14 @@ export default function QRGeneratorPage() {
       </div>
 
       {/* QR 코드 그리드 레이아웃 (테이블별 개별 카드 생성) */}
-      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-6 print:grid-cols-2 print:gap-4 print:max-w-none">
+      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-6 print:grid-cols-2 print:gap-6 print:max-w-none">
         {TABLES.map((table) => {
           const targetUrl = `${BASE_URL}/order?table=${table}`;
 
           return (
             <div
               key={table}
-              className="bg-white border-2 border-gray-200 rounded-2xl p-6 text-center flex flex-col items-center justify-between shadow-sm page-break-inside-avoid print:shadow-none print:border-gray-300 print:mb-4"
+              className="bg-white border-2 border-gray-300 rounded-2xl p-6 text-center flex flex-col items-center justify-between shadow-sm qr-card print:shadow-none print:p-5"
             >
               <div className="w-full text-center border-b pb-3 mb-4">
                 <span className="text-xs uppercase tracking-widest text-gray-400 font-semibold">Breakfast Service</span>
@@ -80,14 +80,16 @@ export default function QRGeneratorPage() {
       <style jsx global>{`
         @media print {
           @page {
-            size: A4;
-            margin: 15mm;
+            size: A4 portrait;
+            margin: 10mm;
           }
           body {
             background: white !important;
+            -webkit-print-color-adjust: exact;
           }
-          .page-break-inside-avoid {
+          .qr-card {
             break-inside: avoid;
+            page-break-inside: avoid;
           }
         }
       `}</style>

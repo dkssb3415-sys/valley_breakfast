@@ -28,6 +28,15 @@ export default function OrderPage() {
 
   useEffect(() => {
     setIsMounted(true);
+    // 접속 시 기존에 저장된 주문 목록 불러오기
+    try {
+      const savedOrders = localStorage.getItem('guest_orders');
+      if (savedOrders) {
+        setOrders(JSON.parse(savedOrders));
+      }
+    } catch (e) {
+      console.error('주문 불러오기 실패:', e);
+    }
   }, []);
 
   // 수량 변경 함수 (최소 0개, 최대 2개 제한)
@@ -60,13 +69,17 @@ export default function OrderPage() {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setOrders((prev) => [newOrder, ...prev]);
+    // 1. 기존 localStorage 데이터에 추가 후 저장 (Kitchen 페이지 연동용)
+    const existingOrders = JSON.parse(localStorage.getItem('guest_orders') || '[]');
+    const updatedOrders = [newOrder, ...existingOrders];
+    localStorage.setItem('guest_orders', JSON.stringify(updatedOrders));
 
-    // 주문 완료 팝업 오픈 및 데이터 세팅
+    // 2. 현재 페이지 React 상태 업데이트
+    setOrders(updatedOrders);
     setLatestOrder(newOrder);
     setIsPopupOpen(true);
 
-    // 주문 후 수량 초기화
+    // 3. 수량 초기화
     setQuantities({ omelet: 0, pancake: 0 });
   };
 
@@ -91,7 +104,6 @@ export default function OrderPage() {
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">
               메뉴 선택
             </h2>
-            {/* 요청하신 안내 문구 반영 */}
             <p className="text-xs font-medium text-rose-500 bg-rose-50 p-2 rounded-lg border border-rose-100 leading-relaxed">
               💡 1회 주문 시 최대 2개까지 구매 가능합니다.<br />
               주문 완료 후 재주문 가능합니다.

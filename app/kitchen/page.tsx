@@ -4,13 +4,49 @@ import { useState, useEffect } from 'react';
 
 export default function KitchenPage() {
   const [orders, setOrders] = useState<any[]>([]);
-  const [statusText, setStatusText] = useState('실시간 연결 대기 중...');
+  const [statusText, setStatusText] = useState('실시간 주문 수신 중...');
   const [isMounted, setIsMounted] = useState(false);
+
+  // 로컬 저장소에서 주문 목록 불러오기
+  const loadOrders = () => {
+    try {
+      const savedOrders = localStorage.getItem('guest_orders');
+      if (savedOrders) {
+        setOrders(JSON.parse(savedOrders));
+      }
+    } catch (e) {
+      console.error('주문 목록 로딩 실패:', e);
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
-    // 주방 화면 로직 (필요시 폴링 또는 실시간 동기화 구현부)
+    loadOrders();
+
+    // 다른 탭/창에서 주문이 들어왔을 때 실시간 감지
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'guest_orders') {
+        loadOrders();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // 2초마다 주기적으로 주문 내역 동기화 (폴링)
+    const interval = setInterval(loadOrders, 2000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
   }, []);
+
+  // 조리 완료 처리 함수
+  const handleComplete = (indexToRemove: number) => {
+    const updated = orders.filter((_, i) => i !== indexToRemove);
+    setOrders(updated);
+    localStorage.setItem('guest_orders', JSON.stringify(updated));
+  };
 
   if (!isMounted) return null;
 
@@ -28,7 +64,10 @@ export default function KitchenPage() {
             </p>
           </div>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              loadOrders();
+              alert('주문목록을 동기화했습니다.');
+            }}
             className="bg-gray-800 hover:bg-gray-900 text-white font-medium px-4 py-2 rounded-xl text-sm transition-colors flex items-center gap-2"
           >
             🔄 수동 새로고침
@@ -59,13 +98,12 @@ export default function KitchenPage() {
 
                   {/* 주문 메뉴 및 수량 리스트 */}
                   <ul className="space-y-2 mb-6">
-                    {order.items.map((item: any, i: number) => (
+                    {order.items?.map((item: any, i: number) => (
                       <li
                         key={i}
                         className="flex justify-between items-center bg-gray-50 px-3 py-2 rounded-xl border border-gray-100"
                       >
                         <span className="font-bold text-gray-800">{item.name}</span>
-                        {/* 수량 강조 표시 */}
                         <span className="bg-rose-500 text-white font-black text-sm px-2.5 py-0.5 rounded-lg shadow-sm">
                           {item.quantity}개
                         </span>
@@ -76,9 +114,7 @@ export default function KitchenPage() {
 
                 {/* 조리 완료 처리 버튼 */}
                 <button
-                  onClick={() => {
-                    setOrders((prev) => prev.filter((_, i) => i !== idx));
-                  }}
+                  onClick={() => handleComplete(idx)}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-colors shadow-sm text-sm"
                 >
                   조리 완료 / 처리

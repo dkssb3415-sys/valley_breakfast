@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-// 메뉴 목록: '라이브 쌀국수' 제거 완료 (치즈 오믈렛, 팬케이크만 구성)
 const MENUS = [
   { id: 'omelet', name: '치즈 오믈렛' },
   { id: 'pancake', name: '팬케이크' },
@@ -13,7 +12,6 @@ function OrderContent() {
   const searchParams = useSearchParams();
   const table = searchParams.get('table') || '1';
 
-  // 메뉴별 선택 수량 상태
   const [quantities, setQuantities] = useState<{ [key: string]: number }>({
     omelet: 0,
     pancake: 0,
@@ -21,15 +19,14 @@ function OrderContent() {
 
   const [orders, setOrders] = useState<any[]>([]);
   const [isMounted, setIsMounted] = useState(false);
-
-  // 주문 완료 팝업 상태
   const [latestOrder, setLatestOrder] = useState<any>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
     try {
-      const savedOrders = localStorage.getItem('guest_orders');
+      // 주방과 동일한 'orders' 키 사용
+      const savedOrders = localStorage.getItem('orders');
       if (savedOrders) {
         setOrders(JSON.parse(savedOrders));
       }
@@ -38,7 +35,6 @@ function OrderContent() {
     }
   }, []);
 
-  // 수량 변경 함수 (최대 2개 제한)
   const handleQuantityChange = (menuId: string, delta: number) => {
     setQuantities((prev) => {
       const current = prev[menuId] || 0;
@@ -48,7 +44,6 @@ function OrderContent() {
     });
   };
 
-  // 주문 전송
   const handleOrderSubmit = () => {
     const selectedItems = Object.entries(quantities)
       .filter(([_, qty]) => qty > 0)
@@ -63,15 +58,20 @@ function OrderContent() {
     }
 
     const newOrder = {
+      id: Date.now().toString(),
       table,
       items: selectedItems,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: '조리중',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     };
 
-    // localStorage 저장 (주방 연동용)
-    const existingOrders = JSON.parse(localStorage.getItem('guest_orders') || '[]');
+    // 주방 KDS와 통일된 'orders' 키로 저장
+    const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]');
     const updatedOrders = [newOrder, ...existingOrders];
-    localStorage.setItem('guest_orders', JSON.stringify(updatedOrders));
+    localStorage.setItem('orders', JSON.stringify(updatedOrders));
+
+    // 브라우저 간 실시간 연동을 위한 이벤트 발생
+    window.dispatchEvent(new Event('storage'));
 
     setOrders(updatedOrders);
     setLatestOrder(newOrder);
@@ -86,7 +86,6 @@ function OrderContent() {
   return (
     <div className="min-h-screen bg-gray-50 p-6 max-w-md mx-auto flex flex-col justify-between relative">
       <div>
-        {/* 상단 타이틀 */}
         <div className="border-b pb-4 mb-6">
           <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
             🍽️ 조식 뷔페 주문
@@ -96,7 +95,6 @@ function OrderContent() {
           </p>
         </div>
 
-        {/* 메뉴 선택 영역 */}
         <div className="mb-6">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
             메뉴 선택
@@ -111,8 +109,6 @@ function OrderContent() {
                   className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between shadow-sm"
                 >
                   <span className="font-bold text-gray-800 text-lg">{menu.name}</span>
-                  
-                  {/* 수량 조절 버튼 (0 ~ 2개 제한) */}
                   <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg p-1">
                     <button
                       onClick={() => handleQuantityChange(menu.id, -1)}
@@ -138,15 +134,13 @@ function OrderContent() {
           </div>
         </div>
 
-        {/* 주문 전송 버튼 */}
         <button
           onClick={handleOrderSubmit}
-          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors text-lg mb-6"
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors text-lg mb-6 active:scale-95"
         >
           주문 전송하기
         </button>
 
-        {/* 요청하신 하단 안내 문구 영역 */}
         <div className="bg-gray-100/80 rounded-xl p-4 text-xs text-gray-600 space-y-1.5 border border-gray-200/60 mb-6">
           <p className="leading-relaxed font-medium">
             ※ 1회 주문 시 최대 2개까지 선택 가능하며 수령 완료 후 추가 주문이 가능합니다.
@@ -156,7 +150,6 @@ function OrderContent() {
           </p>
         </div>
 
-        {/* 내 주문 현황 */}
         <div className="border-t pt-6">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
             📋 내 주문 현황
@@ -166,15 +159,17 @@ function OrderContent() {
           ) : (
             <div className="space-y-3">
               {orders.map((order, idx) => (
-                <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div key={order.id || idx} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-xs text-gray-400">{order.time} 접수</span>
-                    <span className="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">
-                      주문접수
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      order.status === '완료' ? 'bg-gray-200 text-gray-700' : 'bg-orange-100 text-orange-700'
+                    }`}>
+                      {order.status || '조리중'}
                     </span>
                   </div>
                   <ul className="space-y-1">
-                    {order.items.map((item: any, i: number) => (
+                    {order.items?.map((item: any, i: number) => (
                       <li key={i} className="text-sm font-medium text-gray-700 flex justify-between">
                         <span>{item.name}</span>
                         <span className="font-bold text-gray-900">{item.quantity}개</span>
@@ -188,7 +183,6 @@ function OrderContent() {
         </div>
       </div>
 
-      {/* 주문 완료 팝업 */}
       {isPopupOpen && latestOrder && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">

@@ -11,26 +11,18 @@ export default function KitchenPage() {
     setIsMounted(true);
     fetchOrders();
 
-    // Supabase Realtime 리스너 등록 (신규 주문 실시간 감지)
+    // Supabase Realtime 구독 설정
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('kitchen-realtime')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'orders',
         },
-        (payload) => {
-          // 알림음 재생
-          try {
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-            audio.play();
-          } catch (e) {
-            console.log('Audio autoplay is blocked by browser interaction policy');
-          }
-
-          setOrders((prev) => [payload.new, ...prev]);
+        () => {
+          fetchOrders();
         }
       )
       .subscribe();
@@ -40,18 +32,22 @@ export default function KitchenPage() {
     };
   }, []);
 
-  // 전체 주문 가져오기
+  // 모든 주문 데이터 가져오기
   const fetchOrders = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('orders')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (data) setOrders(data);
+    if (error) {
+      console.error('주문 목록 불러오기 실패:', error);
+    } else if (data) {
+      setOrders(data);
+    }
   };
 
-  // 조리 상태 변경
-  const toggleOrderStatus = async (id: string, currentStatus: string) => {
+  // 조리 상태 변경 (조리중 ↔ 완료)
+  const toggleOrderStatus = async (id: any, currentStatus: string) => {
     const nextStatus = currentStatus === '완료' ? '조리중' : '완료';
 
     const { error } = await supabase
@@ -60,17 +56,7 @@ export default function KitchenPage() {
       .eq('id', id);
 
     if (!error) {
-      setOrders((prev) =>
-        prev.map((o) => (o.id === id ? { ...o, status: nextStatus } : o))
-      );
-    }
-  };
-
-  // 전체 주문 삭제
-  const clearAllOrders = async () => {
-    if (confirm('모든 주문 내역을 삭제하시겠습니까?')) {
-      const { error } = await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      if (!error) setOrders([]);
+      fetchOrders();
     }
   };
 
@@ -85,20 +71,20 @@ export default function KitchenPage() {
           </h1>
           <p className="text-xs text-green-600 mt-1 font-semibold flex items-center gap-1">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-ping"></span>
-            Supabase 실시간 연동 활성화됨
+            실시간 연동 활성화됨
           </p>
         </div>
 
         <button
-          onClick={clearAllOrders}
-          className="bg-red-50 hover:bg-red-100 text-red-600 text-sm font-bold px-4 py-2 rounded-xl border border-red-200 transition-colors"
+          onClick={fetchOrders}
+          className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors shadow-sm"
         >
-          🗑️ 전체 내역 삭제
+          🔄 수동 새로고침
         </button>
       </div>
 
       <div className="max-w-7xl mx-auto">
-        <h2 className="text-lg font-bold text-gray-700 mb-4">주문 목록 ({orders.length}건)</h2>
+        <h2 className="text-lg font-bold text-gray-700 mb-4">접수된 주문 ({orders.length}건)</h2>
 
         {orders.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center text-gray-400 border border-gray-200 shadow-sm">
@@ -108,7 +94,11 @@ export default function KitchenPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {orders.map((order) => {
               const isCompleted = order.status === '완료';
-              const timeStr = new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const timeStr = order.created_at
+                ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                : '';
+              
+              const tableNo = order.table_number || order.table_no || order.table || '자유';
 
               return (
                 <div
@@ -121,7 +111,7 @@ export default function KitchenPage() {
                     <div>
                       <span className="text-xs font-bold text-gray-400">{timeStr}</span>
                       <h3 className="text-xl font-black text-gray-900 mt-0.5">
-                        테이블 {order.table_number}번
+                        테이블 {tableNo}번
                       </h3>
                     </div>
                     <span
@@ -133,14 +123,26 @@ export default function KitchenPage() {
                     </span>
                   </div>
 
-                  <ul className="space-y-2 mb-4">
-                    {order.items?.map((item: any, i: number) => (
-                      <li key={i} className="flex justify-between items-center text-base font-bold text-gray-800">
-                        <span>{item.name}</span>
-                        <span className="text-blue-600 text-lg">{item.quantity}개</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {/* 메뉴 표시 (다양한 DB 데이터 형태 모두 호환) */}
+                  <div className="space-y-2 mb-4">
+                    {Array.isArray(order.items) ? (
+                      order.items.map((item: any, i: number) => (
+                        <div key={i} className="flex justify-between items-center text-base font-bold text-gray-800">
+                          <span>{typeof item === 'string' ? item : (item.name || item.menu_name)}</span>
+                          <span className="text-blue-600 text-lg">{item.quantity || item.qty || 1}개</span>
+                        </div>
+                      ))
+                    ) : order.menu ? (
+                      <div className="flex justify-between items-center text-base font-bold text-gray-800">
+                        <span>{order.menu}</span>
+                        <span className="text-blue-600 text-lg">1개</span>
+                      </div>
+                    ) : (
+                      <div className="text-gray-500 font-medium">
+                        {JSON.stringify(order.items || order)}
+                      </div>
+                    )}
+                  </div>
 
                   <button
                     onClick={() => toggleOrderStatus(order.id, order.status)}

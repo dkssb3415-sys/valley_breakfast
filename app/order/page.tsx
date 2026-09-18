@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 const MENUS = [
   { id: 'omelet', name: '치즈 오믈렛' },
@@ -21,19 +22,23 @@ function OrderContent() {
   const [isMounted, setIsMounted] = useState(false);
   const [latestOrder, setLatestOrder] = useState<any>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-    try {
-      // 주방과 동일한 'orders' 키 사용
-      const savedOrders = localStorage.getItem('orders');
-      if (savedOrders) {
-        setOrders(JSON.parse(savedOrders));
-      }
-    } catch (e) {
-      console.error('주문 불러오기 실패:', e);
-    }
-  }, []);
+    fetchMyOrders();
+  }, [table]);
+
+  // 내 테이블 주문 내역 조회
+  const fetchMyOrders = async () => {
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('table_number', table)
+      .order('created_at', { ascending: false });
+
+    if (data) setOrders(data);
+  };
 
   const handleQuantityChange = (menuId: string, delta: number) => {
     setQuantities((prev) => {
@@ -44,7 +49,7 @@ function OrderContent() {
     });
   };
 
-  const handleOrderSubmit = () => {
+  const handleOrderSubmit = async () => {
     const selectedItems = Object.entries(quantities)
       .filter(([_, qty]) => qty > 0)
       .map(([id, qty]) => {
@@ -57,28 +62,32 @@ function OrderContent() {
       return;
     }
 
-    const newOrder = {
-      id: Date.now().toString(),
-      table,
+    setIsSubmitting(true);
+
+    const newOrderData = {
+      table_number: table,
       items: selectedItems,
       status: '조리중',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     };
 
-    // 주방 KDS와 통일된 'orders' 키로 저장
-    const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]');
-    const updatedOrders = [newOrder, ...existingOrders];
-    localStorage.setItem('orders', JSON.stringify(updatedOrders));
+    // Supabase DB에 주문 데이터 삽입
+    const { data, error } = await supabase
+      .from('orders')
+      .insert([newOrderData])
+      .select()
+      .single();
 
-    // 브라우저 간 실시간 연동을 위한 이벤트 발생
-    window.dispatchEvent(new Event('storage'));
+    setIsSubmitting(false);
 
-    setOrders(updatedOrders);
-    setLatestOrder(newOrder);
+    if (error) {
+      alert('주문 전송에 실패했습니다: ' + error.message);
+      return;
+    }
+
+    setLatestOrder(data);
     setIsPopupOpen(true);
-
-    // 수량 초기화
     setQuantities({ omelet: 0, pancake: 0 });
+    fetchMyOrders();
   };
 
   if (!isMounted) return null;
@@ -136,17 +145,15 @@ function OrderContent() {
 
         <button
           onClick={handleOrderSubmit}
-          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors text-lg mb-6 active:scale-95"
+          disabled={isSubmitting}
+          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors text-lg mb-6 active:scale-95 disabled:bg-gray-400"
         >
-          주문 전송하기
+          {isSubmitting ? '주문 전송 중...' : '주문 전송하기'}
         </button>
 
         <div className="bg-gray-100/80 rounded-xl p-4 text-xs text-gray-600 space-y-1.5 border border-gray-200/60 mb-6">
           <p className="leading-relaxed font-medium">
             ※ 1회 주문 시 최대 2개까지 선택 가능하며 수령 완료 후 추가 주문이 가능합니다.
-          </p>
-          <p className="leading-relaxed font-medium text-rose-600">
-            ※ 쌀국수는 라이브 현장에서 주문 부탁드립니다.
           </p>
         </div>
 
@@ -158,14 +165,16 @@ function OrderContent() {
             <p className="text-sm text-gray-400">주문 내역이 없습니다.</p>
           ) : (
             <div className="space-y-3">
-              {orders.map((order, idx) => (
-                <div key={order.id || idx} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+              {orders.map((order) => (
+                <div key={order.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs text-gray-400">{order.time} 접수</span>
+                    <span className="text-xs text-gray-400">
+                      {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 접수
+                    </span>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      order.status === '완료' ? 'bg-gray-200 text-gray-700' : 'bg-orange-100 text-orange-700'
+                      order.status === '완료' ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'
                     }`}>
-                      {order.status || '조리중'}
+                      {order.status}
                     </span>
                   </div>
                   <ul className="space-y-1">
@@ -190,12 +199,12 @@ function OrderContent() {
               ✅
             </div>
             <h3 className="text-xl font-black text-gray-800 mb-1">주문이 완료되었습니다!</h3>
-            <p className="text-xs text-gray-500 mb-6">주방으로 주문이 안전하게 전송되었습니다.</p>
+            <p className="text-xs text-gray-500 mb-6">주방으로 주문이 전송되었습니다.</p>
 
             <div className="bg-gray-50 rounded-xl p-4 text-left border border-gray-100 mb-6">
               <div className="flex justify-between text-xs text-gray-400 border-b pb-2 mb-2">
-                <span>테이블 {latestOrder.table}번</span>
-                <span>{latestOrder.time}</span>
+                <span>테이블 {latestOrder.table_number}번</span>
+                <span>{new Date(latestOrder.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
               <ul className="space-y-1.5">
                 {latestOrder.items.map((item: any, i: number) => (
